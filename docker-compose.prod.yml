@@ -1,0 +1,97 @@
+services:
+  files-app:
+    build:
+      context: .
+      target: runner
+    ports:
+      - "127.0.0.1:${SERVER_PORT:-8082}:8082"
+    environment:
+      SERVER_PORT: ${SERVER_PORT:-8082}
+      DATABASE_URL: postgres://${POSTGRES_USER}:${POSTGRES_PASSWORD}@files-db:5432/${POSTGRES_DB}?sslmode=disable
+      JWT_SECRET: ${JWT_SECRET}
+      # Self-hosted MinIO for now. To move to AWS S3 / Cloudflare R2 later: point S3_ENDPOINT
+      # there, set S3_USE_PATH_STYLE=false, drop the minio/minio-init services below — no Go
+      # code changes needed.
+      S3_ENDPOINT: http://minio:9000
+      # TODO(no-tls): presigned URLs go out as http://<server-ip>:${MINIO_PORT}/... — fine for
+      # now (matches today's plaintext stack) but will mixed-content-block once the frontend is
+      # served over https. Put MinIO behind a TLS reverse proxy (e.g. Caddy) and point this at
+      # the https domain before launching a real https frontend.
+      S3_PUBLIC_ENDPOINT: ${S3_PUBLIC_ENDPOINT}
+      S3_REGION: ${S3_REGION:-us-east-1}
+      S3_BUCKET: ${S3_BUCKET:-learnquest-files}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_KEY: ${S3_SECRET_KEY}
+      S3_USE_PATH_STYLE: "true"
+      PRESIGNED_URL_TTL: ${PRESIGNED_URL_TTL:-1h}
+      PENDING_FILE_TTL: ${PENDING_FILE_TTL:-24h}
+    restart: unless-stopped
+    depends_on:
+      files-db:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    networks:
+      - learnquest
+
+  files-db:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - learnquest
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${S3_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${S3_SECRET_KEY}
+    ports:
+      # Public: presigned PUT/GET URLs are handed straight to the client's browser, so this
+      # port has to be reachable from the internet (unlike files-app, which only the host needs).
+      - "${MINIO_PORT:-9000}:9000"
+      # Admin console — kept off the public interface; reach it via `ssh -L 9001:localhost:9001`.
+      - "127.0.0.1:${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+    networks:
+      - learnquest
+
+  # One-shot job that creates the bucket on first startup (MinIO doesn't do this itself).
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      sh -c "
+      mc alias set local http://minio:9000 ${S3_ACCESS_KEY} ${S3_SECRET_KEY} &&
+      mc mb --ignore-existing local/${S3_BUCKET:-learnquest-files}
+      "
+    networks:
+      - learnquest
+
+volumes:
+  pgdata:
+  miniodata:
+
+networks:
+  learnquest:
+    external: true
