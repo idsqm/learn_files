@@ -22,6 +22,7 @@ type Config struct {
 	S3UsePathStyle   bool          `env:"S3_USE_PATH_STYLE,default=true"`
 	PresignedTTL     time.Duration `env:"PRESIGNED_URL_TTL,default=1h"`
 	PendingFileTTL   time.Duration `env:"PENDING_FILE_TTL,default=24h"`
+	CORSOrigins      []string      `env:"CORS_ORIGINS,default=http://localhost:5173"`
 }
 
 func Load() (*Config, error) {

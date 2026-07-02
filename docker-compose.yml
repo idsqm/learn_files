@@ -10,6 +10,7 @@ services:
       DATABASE_URL: postgres://${POSTGRES_USER:-files}:${POSTGRES_PASSWORD:-files}@files-db:5432/${POSTGRES_DB:-files}?sslmode=disable
       JWT_SECRET: ${JWT_SECRET:-dev-secret-change-me}
       DEBUG: ${DEBUG:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173}
       S3_ENDPOINT: http://minio:9000
       # Presigned URLs are handed to the browser, which reaches MinIO from outside the
       # learnquest network — must be a different, host-reachable address (see internal/storage).

@@ -10,7 +10,7 @@ import (
 	"github.com/andruho/files/internal/service"
 )
 
-func NewRouter(fileSvc service.FileService, jwtSecret string) http.Handler {
+func NewRouter(fileSvc service.FileService, jwtSecret string, corsOrigins []string) http.Handler {
 	r := chi.NewRouter()
 
 	r.Use(middleware.Logger)
@@ -18,7 +18,7 @@ func NewRouter(fileSvc service.FileService, jwtSecret string) http.Handler {
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
 	r.Use(cors.Handler(cors.Options{
-		AllowedOrigins:   []string{"http://localhost:5173"},
+		AllowedOrigins:   corsOrigins,
 		AllowedMethods:   []string{"GET", "POST", "DELETE", "OPTIONS"},
 		AllowedHeaders:   []string{"Authorization", "Content-Type"},
 		AllowCredentials: true,

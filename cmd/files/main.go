@@ -65,7 +65,7 @@ func main() {
 
 	go service.RunCleanupLoop(ctx, fileSvc, cleanupInterval, log)
 
-	router := handler.NewRouter(fileSvc, cfg.JWTSecret)
+	router := handler.NewRouter(fileSvc, cfg.JWTSecret, cfg.CORSOrigins)
 
 	srv := &http.Server{
 		Addr:         ":" + cfg.ServerPort,
